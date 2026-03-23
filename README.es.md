@@ -19,7 +19,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/shell-bash-89dceb?style=for-the-badge&labelColor=363a4f" alt="Shell"/>
   <img src="https://img.shields.io/badge/license-MIT-a6e3a1?style=for-the-badge&labelColor=363a4f" alt="Licencia"/>
-  <img src="https://img.shields.io/badge/version-0.1.0-cba6f7?style=for-the-badge&labelColor=363a4f" alt="Versión"/>
+  <img src="https://img.shields.io/badge/version-0.2.0-cba6f7?style=for-the-badge&labelColor=363a4f" alt="Versión"/>
   <img src="https://img.shields.io/badge/platform-Arch%20Linux-74c7ec?style=for-the-badge&labelColor=363a4f" alt="Plataforma"/>
 </p>
 
@@ -87,26 +87,26 @@ Instala el script `archforge` y copia `lib/` y `modules/` bajo `$(PREFIX)/share/
 
 | ID | Nombre | Categoría | Descripción |
 |---|---|---|---|
-| `pacman` | Package Management: pacman | Gestión de paquetes | [Configurar pacman.conf, multilib, reflector](https://wiki.archlinux.org/title/Pacman) |
-| `aur-helper` | Package Management: AUR helper | Gestión de paquetes | [Detectar/instalar AUR helper (yay/paru)](https://wiki.archlinux.org/title/AUR_helpers) |
-| `systemd` | System Services: systemd | Servicios del sistema | [Tamaño de journal, timeout de apagado, timesyncd](https://wiki.archlinux.org/title/Systemd) |
+| `pacman` | Package Management: pacman | Gestión de paquetes | [Configurar pacman.conf, multilib, reflector, keyring, pkgfile, paccache](https://wiki.archlinux.org/title/Pacman) |
+| `aur-helper` | Package Management: AUR helper | Gestión de paquetes | [Detectar/instalar AUR helper (yay/paru), optimización de makepkg](https://wiki.archlinux.org/title/AUR_helpers) |
+| `systemd` | System Services: systemd | Servicios del sistema | [Journal persistente (drop-in), análisis de arranque, timesyncd](https://wiki.archlinux.org/title/Systemd) |
 | `users-groups` | System: Users and Groups | Servicios del sistema | [Cuentas de usuario, grupos, configuración sudo](https://wiki.archlinux.org/title/Users_and_groups) |
-| `dns` | Security: DNS configuration | Seguridad | [Detección de proveedor DNS, 6 proveedores](https://wiki.archlinux.org/title/Domain_name_resolution) |
-| `firewall` | Security: Firewall (nftables) | Seguridad | [Perfiles nftables (desktop/server/strict)](https://wiki.archlinux.org/title/Nftables) |
-| `antivirus` | Security: Antivirus (ClamAV) | Seguridad | [ClamAV con freshclam, timer de escaneo opcional](https://wiki.archlinux.org/title/ClamAV) |
-| `network` | Networking: network configuration | Red | [Hostname, /etc/hosts, NetworkManager](https://wiki.archlinux.org/title/NetworkManager) |
-| `tlp` | Power: TLP | Gestión de energía | [Optimización de batería para laptops](https://wiki.archlinux.org/title/TLP) |
+| `dns` | Security: DNS configuration | Seguridad | [Detección de proveedor DNS, 6 proveedores, DNSSEC, DoT](https://wiki.archlinux.org/title/Domain_name_resolution) |
+| `firewall` | Security: Firewall (nftables) | Seguridad | [Perfiles nftables (desktop/server/strict), rate limiting SSH, log de drops](https://wiki.archlinux.org/title/Nftables) |
+| `antivirus` | Security: Antivirus (ClamAV) | Seguridad | [ClamAV con config de clamd, freshclam, escaneo en tiempo real opcional + timer](https://wiki.archlinux.org/title/ClamAV) |
+| `network` | Networking: network configuration | Red | [Hostname, /etc/hosts, NetworkManager, ahorro WiFi, dominio regulatorio, MAC aleatoria](https://wiki.archlinux.org/title/NetworkManager) |
+| `tlp` | Power: TLP | Gestión de energía | [Optimización de batería, umbrales de carga, lista de exclusión USB](https://wiki.archlinux.org/title/TLP) |
 | `acpid` | Power: ACPI events (acpid) | Gestión de energía | [Suspensión al cerrar tapa, eventos de botón de encendido](https://wiki.archlinux.org/title/Acpid) |
-| `ssd` | Optimization: SSD | Optimización | [fstrim, noatime en fstab, scheduler de I/O](https://wiki.archlinux.org/title/Solid_state_drive) |
-| `performance` | Optimization: Performance | Optimización | [swappiness, gobernador de CPU, zram](https://wiki.archlinux.org/title/Improving_performance) |
+| `ssd` | Optimization: SSD | Optimización | [Verificar TRIM, fstrim timer, discard continuo, noatime, tmpfs /tmp](https://wiki.archlinux.org/title/Solid_state_drive) |
+| `performance` | Optimization: Performance | Optimización | [Sysctls de red, THP, zram, OOM killer, gobernador de CPU](https://wiki.archlinux.org/title/Improving_performance) |
 | `sensors` | Optimization: Hardware sensors | Optimización | [lm_sensors, detección de sensores](https://wiki.archlinux.org/title/Lm_sensors) |
-| `libinput` | Input: libinput (touchpad/mouse) | Entrada | [Touchpad, scroll natural, TrackPoint](https://wiki.archlinux.org/title/Libinput) |
+| `libinput` | Input: libinput (touchpad/mouse) | Entrada | [Touchpad, scroll natural, TrackPoint, nota Wayland](https://wiki.archlinux.org/title/Libinput) |
 | `keyboard` | Input: Keyboard layout | Entrada | [Keymap de consola, layout X11 vía localectl](https://wiki.archlinux.org/title/Keyboard_configuration_in_console) |
-| `fonts` | Console: Fonts | Consola | [terminus-font, noto-fonts, ttf-liberation](https://wiki.archlinux.org/title/Fonts) |
-| `locale` | Console: Locale & timezone | Consola | [locale-gen, zona horaria, NTP](https://wiki.archlinux.org/title/Locale) |
+| `fonts` | Console: Fonts | Consola | [terminus-font, noto-fonts, ttf-liberation, vconsole.conf](https://wiki.archlinux.org/title/Fonts) |
+| `locale` | Console: Locale & timezone | Consola | [locale-gen, zona horaria, sincronización de reloj hardware, NTP](https://wiki.archlinux.org/title/Locale) |
 | `nouveau` | Graphics: Nouveau (open-source NVIDIA) | Gráficos | [Driver NVIDIA de código abierto](https://wiki.archlinux.org/title/Nouveau) |
 | `nvidia` | Graphics: NVIDIA driver | Gráficos | [Instalación del driver propietario de NVIDIA](https://wiki.archlinux.org/title/NVIDIA) |
-| `steam` | Gaming: Steam | Gaming | [Steam con dependencias Proton/Wine](https://wiki.archlinux.org/title/Steam) |
+| `steam` | Gaming: Steam | Gaming | [Steam, deps Proton/Wine, fd-limit, GameMode, MangoHud](https://wiki.archlinux.org/title/Steam) |
 | `printing` | Peripherals: Printing (CUPS) | Periféricos | [CUPS, drivers de impresora, avahi](https://wiki.archlinux.org/title/CUPS) |
 | `vmware-host` | Virtualization: VMware Workstation (host) | Virtualización | [Configuración de host VMware Workstation](https://wiki.archlinux.org/title/VMware) |
 

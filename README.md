@@ -19,7 +19,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/shell-bash-89dceb?style=for-the-badge&labelColor=363a4f" alt="Shell"/>
   <img src="https://img.shields.io/badge/license-MIT-a6e3a1?style=for-the-badge&labelColor=363a4f" alt="License"/>
-  <img src="https://img.shields.io/badge/version-0.1.0-cba6f7?style=for-the-badge&labelColor=363a4f" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.2.0-cba6f7?style=for-the-badge&labelColor=363a4f" alt="Version"/>
   <img src="https://img.shields.io/badge/platform-Arch%20Linux-74c7ec?style=for-the-badge&labelColor=363a4f" alt="Platform"/>
 </p>
 
@@ -87,26 +87,26 @@ This installs the `archforge` script and copies `lib/` and `modules/` under `$(P
 
 | ID | Name | Category | Description |
 |---|---|---|---|
-| `pacman` | Package Management: pacman | Package Management | [Configure pacman.conf, multilib, reflector](https://wiki.archlinux.org/title/Pacman) |
-| `aur-helper` | Package Management: AUR helper | Package Management | [Detect/install AUR helper (yay/paru)](https://wiki.archlinux.org/title/AUR_helpers) |
-| `systemd` | System Services: systemd | System Services | [Journal size, shutdown timeout, timesyncd](https://wiki.archlinux.org/title/Systemd) |
+| `pacman` | Package Management: pacman | Package Management | [Configure pacman.conf, multilib, reflector, keyring, pkgfile, paccache](https://wiki.archlinux.org/title/Pacman) |
+| `aur-helper` | Package Management: AUR helper | Package Management | [Detect/install AUR helper (yay/paru), makepkg optimization](https://wiki.archlinux.org/title/AUR_helpers) |
+| `systemd` | System Services: systemd | System Services | [Persistent journal drop-in, boot analysis, timesyncd](https://wiki.archlinux.org/title/Systemd) |
 | `users-groups` | System: Users and Groups | System Services | [User accounts, groups, sudo config](https://wiki.archlinux.org/title/Users_and_groups) |
-| `dns` | Security: DNS configuration | Security | [DNS provider detection, 6 providers](https://wiki.archlinux.org/title/Domain_name_resolution) |
-| `firewall` | Security: Firewall (nftables) | Security | [nftables profiles (desktop/server/strict)](https://wiki.archlinux.org/title/Nftables) |
-| `antivirus` | Security: Antivirus (ClamAV) | Security | [ClamAV with freshclam, optional scan timer](https://wiki.archlinux.org/title/ClamAV) |
-| `network` | Networking: network configuration | Networking | [Hostname, /etc/hosts, NetworkManager](https://wiki.archlinux.org/title/NetworkManager) |
-| `tlp` | Power: TLP | Power Management | [Battery optimization for laptops](https://wiki.archlinux.org/title/TLP) |
+| `dns` | Security: DNS configuration | Security | [DNS provider detection, 6 providers, DNSSEC, DoT](https://wiki.archlinux.org/title/Domain_name_resolution) |
+| `firewall` | Security: Firewall (nftables) | Security | [nftables profiles (desktop/server/strict), SSH rate limiting, drop logging](https://wiki.archlinux.org/title/Nftables) |
+| `antivirus` | Security: Antivirus (ClamAV) | Security | [ClamAV with clamd config, freshclam, optional on-access scanning + scan timer](https://wiki.archlinux.org/title/ClamAV) |
+| `network` | Networking: network configuration | Networking | [Hostname, /etc/hosts, NetworkManager, WiFi powersave, regulatory domain, MAC randomization](https://wiki.archlinux.org/title/NetworkManager) |
+| `tlp` | Power: TLP | Power Management | [Battery optimization, charge thresholds, USB denylist](https://wiki.archlinux.org/title/TLP) |
 | `acpid` | Power: ACPI events (acpid) | Power Management | [Lid close suspend, power button events](https://wiki.archlinux.org/title/Acpid) |
-| `ssd` | Optimization: SSD | Optimization | [fstrim, noatime fstab, I/O scheduler](https://wiki.archlinux.org/title/Solid_state_drive) |
-| `performance` | Optimization: Performance | Optimization | [swappiness, CPU governor, zram](https://wiki.archlinux.org/title/Improving_performance) |
+| `ssd` | Optimization: SSD | Optimization | [TRIM verify, fstrim timer, continuous discard, noatime, tmpfs /tmp](https://wiki.archlinux.org/title/Solid_state_drive) |
+| `performance` | Optimization: Performance | Optimization | [Network sysctls, THP, zram, OOM killer, CPU governor](https://wiki.archlinux.org/title/Improving_performance) |
 | `sensors` | Optimization: Hardware sensors | Optimization | [lm_sensors, sensor detection](https://wiki.archlinux.org/title/Lm_sensors) |
-| `libinput` | Input: libinput (touchpad/mouse) | Input | [Touchpad, natural scroll, TrackPoint](https://wiki.archlinux.org/title/Libinput) |
+| `libinput` | Input: libinput (touchpad/mouse) | Input | [Touchpad, natural scroll, TrackPoint, Wayland note](https://wiki.archlinux.org/title/Libinput) |
 | `keyboard` | Input: Keyboard layout | Input | [Console keymap, X11 layout via localectl](https://wiki.archlinux.org/title/Keyboard_configuration_in_console) |
-| `fonts` | Console: Fonts | Console | [terminus-font, noto-fonts, ttf-liberation](https://wiki.archlinux.org/title/Fonts) |
-| `locale` | Console: Locale & timezone | Console | [locale-gen, timezone, NTP](https://wiki.archlinux.org/title/Locale) |
+| `fonts` | Console: Fonts | Console | [terminus-font, noto-fonts, ttf-liberation, vconsole.conf](https://wiki.archlinux.org/title/Fonts) |
+| `locale` | Console: Locale & timezone | Console | [locale-gen, timezone, hardware clock sync, NTP](https://wiki.archlinux.org/title/Locale) |
 | `nouveau` | Graphics: Nouveau (open-source NVIDIA) | Graphics | [Open-source NVIDIA driver](https://wiki.archlinux.org/title/Nouveau) |
 | `nvidia` | Graphics: NVIDIA driver | Graphics | [Proprietary NVIDIA driver install](https://wiki.archlinux.org/title/NVIDIA) |
-| `steam` | Gaming: Steam | Gaming | [Steam with Proton/Wine dependencies](https://wiki.archlinux.org/title/Steam) |
+| `steam` | Gaming: Steam | Gaming | [Steam, Proton/Wine deps, fd-limit, GameMode, MangoHud](https://wiki.archlinux.org/title/Steam) |
 | `printing` | Peripherals: Printing (CUPS) | Peripherals | [CUPS, printer drivers, avahi](https://wiki.archlinux.org/title/CUPS) |
 | `vmware-host` | Virtualization: VMware Workstation (host) | Virtualization | [VMware Workstation host setup](https://wiki.archlinux.org/title/VMware) |
 
