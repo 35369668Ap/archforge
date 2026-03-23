@@ -1,0 +1,442 @@
+#!/usr/bin/env bash
+# archforge — modular Arch Linux post-installation toolkit
+# shellcheck shell=bash
+set -euo pipefail
+
+readonly ARCHFORGE_VERSION="0.1.0"
+ARCHFORGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ARCHFORGE_DIR
+
+# ── Global session variables ──────────────────────────────────────────────────
+export DRY_RUN=false
+export YES_FLAG=false
+export AUR_HELPER=""
+export LOG_FILE=""
+export SESSION_ID=""
+export ARCHFORGE_TEST=false
+export DETECTED_CPU="" DETECTED_GPU="" IS_LAPTOP="" SYSTEM_TYPE="" DETECTED_INIT=""
+export REQUESTED_MODULES=()
+export SUBCOMMAND=""
+# MODULE_NAME, MODULE_HW_WARN, MODULE_DEPENDS, MODULE_WIKI_SOURCE, MODULE_DESC
+# are globals set by _load_module_info(); treated as outputs of that function.
+
+# ── Source libs ───────────────────────────────────────────────────────────────
+# shellcheck source=lib/i18n.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/i18n.sh"
+# shellcheck source=lib/core.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/core.sh"
+# shellcheck source=lib/detect.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/detect.sh"
+# shellcheck source=lib/packages.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/packages.sh"
+# shellcheck source=lib/backup.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/backup.sh"
+# shellcheck source=lib/menu.sh disable=SC1091
+source "${ARCHFORGE_DIR}/lib/menu.sh"
+
+# ── Module registry ───────────────────────────────────────────────────────────
+ALL_MODULES=(
+  "pacman:01-package-management/pacman.sh"
+  "aur-helper:01-package-management/aur-helper.sh"
+  "systemd:02-system-services/systemd.sh"
+  "users-groups:02-system-services/users-groups.sh"
+  "dns:03-security/dns.sh"
+  "firewall:03-security/firewall.sh"
+  "antivirus:03-security/antivirus.sh"
+  "network:05-networking/network.sh"
+  "tlp:04-power/tlp.sh"
+  "acpid:04-power/acpid.sh"
+  "ssd:07-optimization/ssd.sh"
+  "performance:07-optimization/performance.sh"
+  "sensors:07-optimization/sensors.sh"
+  "libinput:06-input/libinput.sh"
+  "keyboard:06-input/keyboard.sh"
+  "fonts:08-console/fonts.sh"
+  "locale:08-console/locale.sh"
+  "nouveau:10-graphics/nouveau.sh"
+  "nvidia:10-graphics/nvidia.sh"
+  "steam:11-gaming/steam.sh"
+  "printing:12-peripherals/printing.sh"
+  "vmware-host:13-virtualization/vmware-host.sh"
+)
+
+# ── Argument parsing ──────────────────────────────────────────────────────────
+parse_args() {
+  REQUESTED_MODULES=()
+  SUBCOMMAND=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      restore)         SUBCOMMAND="restore" ;;
+      --dry-run)       DRY_RUN=true ;;
+      --yes|-y)        YES_FLAG=true ;;
+      --modules=*)     IFS=',' read -ra REQUESTED_MODULES <<< "${1#*=}" ;;
+      --modules)       shift; IFS=',' read -ra REQUESTED_MODULES <<< "$1" ;;
+      --aur-helper=*)  AUR_HELPER="${1#*=}" ;;
+      --help|-h)       _print_help; exit 0 ;;
+      --version)       echo "archforge v${ARCHFORGE_VERSION}"; exit 0 ;;
+      --parse-only)    return 0 ;;
+      *)               log_warn "Unknown option: $1" ;;
+    esac
+    shift
+  done
+  export DRY_RUN YES_FLAG AUR_HELPER
+}
+
+_print_help() {
+  cat <<EOF
+archforge v${ARCHFORGE_VERSION} — Arch Linux post-installation toolkit
+
+Usage:
+  archforge [options]           Run module selector and apply pipeline
+  archforge restore             Interactive restore from backup session
+
+Options:
+  --modules m1,m2,...    Run specific modules (skips menu)
+  --dry-run              Show what would change, execute nothing
+  --yes, -y              Skip all confirmation prompts
+  --aur-helper=NAME      Override AUR helper (yay, paru, ...)
+  --help, -h             Show this help
+  --version              Show version
+
+Available modules:
+$(printf '  %s\n' "${ALL_MODULES[@]%%:*}")
+EOF
+}
+
+# ── Module info loader ────────────────────────────────────────────────────────
+_load_module_info() {
+  local module_file="$1"
+  MODULE_NAME="" MODULE_HW_WARN="" MODULE_DEPENDS="" MODULE_WIKI_SOURCE="" MODULE_DESC=""
+
+  local out
+  out="$(bash -c "
+    source '${module_file}'
+    module_info
+    printf 'MODULE_NAME=%q\n'        \"\${MODULE_NAME:-}\"
+    printf 'MODULE_HW_WARN=%q\n'     \"\${MODULE_HW_WARN:-}\"
+    printf 'MODULE_DEPENDS=%q\n'     \"\${MODULE_DEPENDS:-}\"
+    printf 'MODULE_WIKI_SOURCE=%q\n' \"\${MODULE_WIKI_SOURCE:-}\"
+    printf 'MODULE_DESC=%q\n'        \"\${MODULE_DESC:-}\"
+  " 2>/dev/null)" || return 1
+
+  local line
+  while IFS= read -r line; do
+    case "${line}" in
+      MODULE_NAME=*)        eval "MODULE_NAME=${line#MODULE_NAME=}"               ;;
+      MODULE_HW_WARN=*)     eval "MODULE_HW_WARN=${line#MODULE_HW_WARN=}"         ;;
+      MODULE_DEPENDS=*)     eval "MODULE_DEPENDS=${line#MODULE_DEPENDS=}"         ;;
+      MODULE_WIKI_SOURCE=*) eval "MODULE_WIKI_SOURCE=${line#MODULE_WIKI_SOURCE=}" ;;
+      MODULE_DESC=*)        eval "MODULE_DESC=${line#MODULE_DESC=}"               ;;
+      *)                    ;;
+    esac
+  done <<< "${out}"
+}
+
+# ── Module pipeline ───────────────────────────────────────────────────────────
+_find_module_file() {
+  local id="$1"
+  local entry
+  for entry in "${ALL_MODULES[@]}"; do
+    if [[ "${entry%%:*}" == "${id}" ]]; then
+      echo "${ARCHFORGE_DIR}/modules/${entry#*:}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_modules() {
+  local results_file="/tmp/archforge-results-$$.log"
+  local module_id module_file exit_code status_label
+
+  for module_id in "$@"; do
+    # shellcheck disable=SC2310
+    module_file="$(_find_module_file "${module_id}" || true)"
+    if [[ -z "${module_file}" ]]; then
+      log_error "Module not found: ${module_id}"
+      echo "${module_id}|ERROR|${module_id}" >> "${results_file}"
+      continue
+    fi
+
+    # Load module metadata (safe whitelist parse)
+    MODULE_NAME="" MODULE_HW_WARN="" MODULE_DEPENDS="" MODULE_WIKI_SOURCE="" MODULE_DESC=""
+    # shellcheck disable=SC2310
+    _load_module_info "${module_file}" || true
+
+    # ── Module header ─────────────────────────────────────────────────────────
+    local _term_w
+    _term_w=$(tput cols 2>/dev/null || echo 70)
+    local _mod_label="── Module: ${MODULE_NAME:-${module_id}} "
+    local _sep_len=$(( _term_w - ${#_mod_label} ))
+    (( _sep_len < 2 )) && _sep_len=2
+    local _sep="" _si
+    for (( _si=0; _si<_sep_len; _si++ )); do _sep+="─"; done
+    # shellcheck disable=SC2154
+    echo -e "\n${_BOLD}${_mod_label}${_sep}${_RESET}"
+    if [[ -n "${MODULE_HW_WARN}" ]]; then
+      # shellcheck disable=SC2154
+      echo -e "   ${_YELLOW}⚠  ${MODULE_HW_WARN}${_RESET}"
+    fi
+    if [[ -n "${MODULE_WIKI_SOURCE:-}" ]]; then
+      local _wiki_url
+      # shellcheck disable=SC2154,SC2312
+      while IFS= read -r _wiki_url; do
+        [[ -n "${_wiki_url}" ]] || continue
+        echo -e "   ${_CYAN}${_wiki_url}${_RESET}"
+      done < <(wiki_source_to_urls "${MODULE_WIKI_SOURCE}")
+    fi
+    echo ""
+
+    # Dependency advisory (never blocks — only warns)
+    if [[ -n "${MODULE_DEPENDS}" ]]; then
+      local dep
+      for dep in ${MODULE_DEPENDS}; do
+        if ! printf '%s\n' "$@" | grep -qx "${dep}"; then
+          log_warn "Recommended dependency [${dep}] is not in the selected modules."
+          # shellcheck disable=SC2310
+          confirm "Continue without [${dep}]?" || {
+            log_skip "Skipped by user (missing dep): ${module_id}"
+            echo "${module_id}|SKIP|${MODULE_NAME:-${module_id}}" >> "${results_file}"
+            continue 2
+          }
+        fi
+      done
+    fi
+
+    # shellcheck disable=SC2310
+    confirm "Apply module: ${MODULE_NAME:-${module_id}}?" "y" || {
+      log_skip "Skipped by user: ${module_id}"
+      echo "${module_id}|SKIP|${MODULE_NAME:-${module_id}}" >> "${results_file}"
+      continue
+    }
+
+    # Run in subshell for error isolation
+    exit_code=0
+    (
+      set -euo pipefail
+      # shellcheck source=/dev/null
+      source "${module_file}"
+      module_run
+    ) || exit_code=$?
+
+    case ${exit_code} in
+      0) log_ok "Done: ${module_id}";                          status_label="OK"    ;;
+      2) log_skip "Skipped: ${module_id}";                     status_label="SKIP"  ;;
+      *) log_error "Failed: ${module_id} (exit ${exit_code})"; status_label="ERROR" ;;
+    esac
+
+    echo "${module_id}|${status_label}|${MODULE_NAME:-${module_id}}" >> "${results_file}"
+  done
+}
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+print_summary() {
+  local results_file="/tmp/archforge-results-$$.log"
+  local pkgs_file="/tmp/archforge-pkgs-$$.log"
+  local manifest="${BACKUP_BASE_DIR:-${HOME}/.local/share/archforge/backups}/${SESSION_ID}/session.manifest"
+  local sep="══════════════════════════════════════════════════════"
+  # Total row width = 56 (1 ║ + 54 content + 1 ║). box_line uses BOX_WIDTH=56.
+  local BOX_WIDTH=56
+
+  # Print a standard content line: 2-space indent, content truncated to fit, right border aligned.
+  box_line() {
+    local content="${1}"
+    local field=$(( BOX_WIDTH - 4 ))  # 56-4 = 52: 2 indent + 52 content = 54 inner
+    if [[ ${#content} -gt ${field} ]]; then
+      content="${content:0:$((field - 3))}..."
+    fi
+    printf "║  %-*s║\n" "${field}" "${content}"
+  }
+
+  # Print an indented content line (4-space indent) for sub-items.
+  box_line_sub() {
+    local content="${1}"
+    local field=$(( BOX_WIDTH - 6 ))  # 56-6 = 50: 4 indent + 50 content = 54 inner
+    if [[ ${#content} -gt ${field} ]]; then
+      content="${content:0:$((field - 3))}..."
+    fi
+    printf "║    %-*s║\n" "${field}" "${content}"
+  }
+
+  {
+    echo ""
+    echo "╔${sep}╗"
+    printf "║%13s%s%14s║\n" "" "archforge — Session Summary" ""
+    echo "╠${sep}╣"
+    local _now
+    _now="$(date '+%Y-%m-%d %H:%M:%S')" || true
+    box_line "Date: ${_now}"
+    box_line "Mode: dry-run=${DRY_RUN}  yes=${YES_FLAG}"
+    echo "╠${sep}╣"
+
+    # Load results into a map for grouped display
+    local -A _res_map=()  # module_id -> "status|name"
+    if [[ -f "${results_file}" ]]; then
+      local _mid _st _mn
+      while IFS='|' read -r _mid _st _mn; do
+        _res_map["${_mid}"]="${_st}|${_mn}"
+      done < "${results_file}"
+    fi
+
+    if [[ ${#_res_map[@]} -gt 0 ]]; then
+      # Print grouped by MODULE_EXECUTION_ORDER (defined in lib/menu.sh)
+      local _current_cat="" _icon _cat _short _display _field=47
+      # shellcheck disable=SC2154
+      for _mod_id in "${MODULE_EXECUTION_ORDER[@]}"; do
+        [[ -z "${_res_map[${_mod_id}]+_}" ]] && continue
+        _st="${_res_map[${_mod_id}]%%|*}"
+        _mn="${_res_map[${_mod_id}]#*|}"
+
+        # Category from "Category: short_name" format
+        if [[ "${_mn}" == *": "* ]]; then
+          _cat="${_mn%%: *}"
+          _short="${_mn#*: }"
+        else
+          _cat="Other"
+          _short="${_mn:-${_mod_id}}"
+        fi
+
+        # Category header when category changes
+        if [[ "${_cat}" != "${_current_cat}" ]]; then
+          _current_cat="${_cat}"
+          printf "║  %-52s║\n" "${_cat}"
+        fi
+
+        case "${_st}" in
+          OK)    _icon="✓" ;;
+          SKIP)  _icon="─" ;;
+          ERROR) _icon="✗" ;;
+          *)     _icon="?" ;;
+        esac
+
+        # Module line: ║    icon  name (47 chars) ║
+        if [[ ${#_short} -gt ${_field} ]]; then
+          _display="${_short:0:$((_field - 3))}..."
+        else
+          _display="${_short}"
+        fi
+        printf "║    %s  %-*s║\n" "${_icon}" "${_field}" "${_display}"
+      done
+
+      # Any modules not in MODULE_EXECUTION_ORDER go at the end
+      for _mod_id in "${!_res_map[@]}"; do
+        local _in_order=false _m
+        for _m in "${MODULE_EXECUTION_ORDER[@]}"; do
+          [[ "${_m}" == "${_mod_id}" ]] && _in_order=true && break
+        done
+        if [[ "${_in_order}" == false ]]; then
+          _st="${_res_map[${_mod_id}]%%|*}"
+          _mn="${_res_map[${_mod_id}]#*|}"
+          case "${_st}" in OK) _icon="✓" ;; SKIP) _icon="─" ;; ERROR) _icon="✗" ;; *) _icon="?" ;; esac
+          _display="${_mn:-${_mod_id}}"
+          [[ ${#_display} -gt ${_field} ]] && _display="${_display:0:$((_field-3))}..."
+          printf "║    %s  %-*s║\n" "${_icon}" "${_field}" "${_display}"
+        fi
+      done
+    else
+      box_line "(no results)"
+    fi
+
+    # Packages installed
+    if [[ -f "${pkgs_file}" && -s "${pkgs_file}" ]]; then
+      echo "╠${sep}╣"
+      box_line "Packages Installed:"
+      local pkg_line
+      while IFS= read -r pkg_line; do
+        box_line_sub "${pkg_line}"
+      done < "${pkgs_file}"
+    fi
+
+    # Files modified (backup manifest PATH= entries)
+    if [[ -f "${manifest}" ]]; then
+      local backed_up=()
+      local -A _seen_paths=()
+      local mline
+      while IFS= read -r mline; do
+        if [[ "${mline}" =~ ^[[:space:]]*PATH=([^[:space:]]+) ]]; then
+          local _bpath="${BASH_REMATCH[1]}"
+          if [[ -z "${_seen_paths[${_bpath}]+_}" ]]; then
+            backed_up+=("${_bpath}")
+            _seen_paths["${_bpath}"]=1
+          fi
+        fi
+      done < "${manifest}"
+      if [[ ${#backed_up[@]} -gt 0 ]]; then
+        echo "╠${sep}╣"
+        box_line "Files Modified (backed up):"
+        local bfile
+        for bfile in "${backed_up[@]}"; do
+          box_line_sub "${bfile}"
+        done
+      fi
+    fi
+
+    echo "╠${sep}╣"
+    if [[ -n "${LOG_FILE:-}" ]]; then
+      if (( ${#LOG_FILE} + 6 > BOX_WIDTH - 4 )); then
+        box_line "Log:"
+        box_line_sub "${LOG_FILE}"
+      else
+        box_line "Log: ${LOG_FILE}"
+      fi
+    fi
+    echo "╚${sep}╝"
+    echo ""
+  } | tee -a "${LOG_FILE:-/dev/null}"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+main() {
+  printf '\033[3J'
+  clear
+  resolve_log_file
+  parse_args "$@"
+
+  [[ "${SUBCOMMAND:-}" == "restore" ]] && { restore_session; exit 0; }
+
+  SESSION_ID="$(date '+%Y-%m-%d_%H%M%S')"
+  export SESSION_ID
+  detect_hardware
+  [[ -z "${AUR_HELPER}" ]] && detect_aur_helper
+
+  local -a modules_to_run=()
+
+  if [[ ${#REQUESTED_MODULES[@]} -gt 0 ]]; then
+    modules_to_run=("${REQUESTED_MODULES[@]}")
+  else
+    local -a menu_entries=()
+    local entry id file name hw_warn desc
+    for entry in "${ALL_MODULES[@]}"; do
+      id="${entry%%:*}"
+      file="${ARCHFORGE_DIR}/modules/${entry#*:}"
+      MODULE_NAME="" MODULE_HW_WARN="" MODULE_DESC=""
+      if [[ -f "${file}" ]]; then
+        # shellcheck disable=SC2310
+        _load_module_info "${file}" || true
+        name="${MODULE_NAME:-${id}}"
+        hw_warn="${MODULE_HW_WARN:-}"
+        desc="${MODULE_DESC:-}"
+      else
+        name="${id}"
+        hw_warn=""
+        desc=""
+      fi
+      menu_entries+=("${id}:${name}:${desc}:${hw_warn}")
+    done
+    SELECTED_MODULES=()
+    show_menu menu_entries
+    modules_to_run=("${SELECTED_MODULES[@]}")
+  fi
+
+  # Register cleanup of results file on session exit
+  trap 'rm -f "/tmp/archforge-results-$$.log" "/tmp/archforge-pkgs-$$.log"' EXIT
+
+  [[ ${#modules_to_run[@]} -eq 0 ]] && { log_info "No modules selected."; exit 0; }
+
+  run_modules "${modules_to_run[@]}"
+  print_summary
+}
+
+# Run main only when executed directly (not when sourced for testing)
+[[ " $* " == *" --parse-only "* ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || main "$@"

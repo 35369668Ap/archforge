@@ -1,0 +1,29 @@
+# Logs
+*.log
+
+# Backups and temporaries
+*.bak
+*.tmp
+
+# Environment variables
+.env
+
+# Build output
+/dist/
+/build/
+
+# Editor / OS junk
+*.swp
+*.swo
+*~
+.directory
+Thumbs.db
+
+# macOS metadata
+.DS_Store
+
+# Release archives
+archforge-*.tar.gz
+
+# Test fixtures
+tests/fixtures/tmp/

@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# lib/core.sh — logging, confirm(), run_cmd(), global helpers
+# shellcheck shell=bash
+
+# ── Colors ────────────────────────────────────────────────────────────────────
+_RED='\033[0;31m'
+_GREEN='\033[0;32m'
+_YELLOW='\033[1;33m'
+_CYAN='\033[0;36m'
+_MAGENTA='\033[0;35m'
+_DIM='\033[2m'
+_RESET='\033[0m'
+_BOLD='\033[1m'
+
+# ── Log helpers ───────────────────────────────────────────────────────────────
+_log() {
+  local tag="${1}" color="${2}" msg="${3}"
+  local line
+  printf -v line "${color}[%6s]${_RESET} %s" "${tag}" "${msg}"
+  echo -e "${line}"
+  if [[ -n "${LOG_FILE:-}" ]]; then
+    local _ts; _ts="$(date '+%H:%M:%S')"
+    echo "[${_ts}] [${tag}] ${msg}" >> "${LOG_FILE}"
+  fi
+}
+
+log_info()  { _log " INFO " "${_CYAN}"    "$1"; }
+log_ok()    { _log "  OK  " "${_GREEN}"   "$1"; }
+log_warn()  { _log " WARN " "${_YELLOW}"  "$1" >&2; }
+log_error() { _log "ERROR " "${_RED}"     "$1" >&2; }
+log_skip()  { _log " SKIP " "${_DIM}"     "$1"; }
+log_dry()   { _log "DRYRUN" "${_MAGENTA}" "$1"; }
+
+# ── resolve_log_file ──────────────────────────────────────────────────────────
+resolve_log_file() {
+  local ts
+  ts="$(date '+%Y-%m-%d_%H%M%S')"
+  local system_dir='/var/log/archforge'
+  local user_dir="${HOME}/.local/share/archforge/logs"
+
+  if mkdir -p "${system_dir}" 2>/dev/null && [[ -w "${system_dir}" ]]; then
+    LOG_FILE="${system_dir}/${ts}.log"
+  else
+    mkdir -p "${user_dir}"
+    LOG_FILE="${user_dir}/${ts}.log"
+  fi
+  touch "${LOG_FILE}"
+  export LOG_FILE
+}
+
+# ── confirm ───────────────────────────────────────────────────────────────────
+# Returns 0 (proceed) or 1 (skip).
+# In dry-run or --yes mode: always returns 0 without prompting.
+# $2: default answer — "y" → [Y/n] (Enter = yes), "n"/omitted → [y/N] (Enter = no)
+# Rationale: dry-run needs confirm() to return 0 so execution reaches run_cmd(),
+# where the actual no-execute behavior is enforced via [DRY-RUN] output.
+confirm() {
+  local prompt="${1:-Continue?}"
+  local default="${2:-n}"
+  if [[ "${YES_FLAG:-false}" == "true" ]] || [[ "${DRY_RUN:-false}" == "true" ]]; then
+    return 0
+  fi
+  local answer bracket
+  if [[ "${default,,}" == "y" ]]; then
+    bracket="[Y/n]"
+  else
+    bracket="[y/N]"
+  fi
+  read -r -p "$(echo -e "${_BOLD}${prompt}${_RESET} ${bracket} ")" answer
+  if [[ -z "${answer}" ]]; then
+    [[ "${default,,}" == "y" ]]; return
+  fi
+  [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
+}
+
+# ── run_cmd ───────────────────────────────────────────────────────────────────
+# In dry-run mode: prints [DRY-RUN] prefix, returns 0, does NOT execute.
+# In test mode (ARCHFORGE_TEST=true): appends command to MOCK_LOG_FILE on disk.
+#   File-based because module_run() runs in a subshell — in-memory state is lost.
+run_cmd() {
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    log_dry "$*"
+    return 0
+  fi
+  if [[ "${ARCHFORGE_TEST:-false}" == "true" ]]; then
+    echo "$*" >> "${MOCK_LOG_FILE:-/tmp/archforge-mock-$$.log}"
+    return 0
+  fi
+  "$@"
+}
+
+# ── die ───────────────────────────────────────────────────────────────────────
+die() {
+  log_error "$1"
+  exit "${2:-1}"
+}
+
+# ── require_root ──────────────────────────────────────────────────────────────
+require_root() {
+  [[ "${EUID}" -eq 0 ]] || die "This operation requires root. Re-run with sudo."
+}
+
+# ── wiki_source_to_urls ───────────────────────────────────────────────────────
+# Map MODULE_WIKI_SOURCE filenames to official ArchWiki URLs.
+# Usage: wiki_source_to_urls "file1.txt file2.txt"
+# Prints one URL (or fallback filename) per line.
+wiki_source_to_urls() {
+  local sources="${1}"
+  local fname url
+  for fname in ${sources}; do
+    case "${fname}" in
+      aur-wiki-amd-graphics.txt)                         url="https://wiki.archlinux.org/title/AMDGPU" ;;
+      aur-wiki-arch-boot-process.txt)                    url="https://wiki.archlinux.org/title/Arch_boot_process" ;;
+      aur-wiki-CUPS-Printer-specific-problems.txt)       url="https://wiki.archlinux.org/title/CUPS/Printer-specific_problems" ;;
+      aur-wiki-CUPS-Troubleshooting.txt)                 url="https://wiki.archlinux.org/title/CUPS/Troubleshooting" ;;
+      aur-wiki-CUPS.txt)                                 url="https://wiki.archlinux.org/title/CUPS" ;;
+      aur-wiki-dnssec.txt)                               url="https://wiki.archlinux.org/title/DNSSEC" ;;
+      aur-wiki-domain-name-resolution.txt)               url="https://wiki.archlinux.org/title/Domain_name_resolution" ;;
+      aur-wiki-fan-speed-control.txt)                    url="https://wiki.archlinux.org/title/Fan_speed_control" ;;
+      aur-wiki-fonts.txt)                                url="https://wiki.archlinux.org/title/Fonts" ;;
+      aur-wiki-general-recommendation.txt)               url="https://wiki.archlinux.org/title/General_recommendations" ;;
+      aur-wiki-graphics-processing.txt)                  url="https://wiki.archlinux.org/title/Graphics_processing_unit" ;;
+      aur-wiki-improving-performance.txt)                url="https://wiki.archlinux.org/title/Improving_performance" ;;
+      aur-wiki-intel-graphics.txt)                       url="https://wiki.archlinux.org/title/Intel_graphics" ;;
+      aur-wiki-iptables.txt)                             url="https://wiki.archlinux.org/title/Iptables" ;;
+      aur-wiki-laptop-hp.txt)                            url="https://wiki.archlinux.org/title/Laptop/HP" ;;
+      aur-wiki-laptop.txt)                               url="https://wiki.archlinux.org/title/Laptop" ;;
+      aur-wiki-libinput.txt)                             url="https://wiki.archlinux.org/title/Libinput" ;;
+      aur-wiki-linux-console-keyboard-configuration.txt) url="https://wiki.archlinux.org/title/Linux_console/Keyboard_configuration" ;;
+      aur-wiki-Linux-console.txt)                        url="https://wiki.archlinux.org/title/Linux_console" ;;
+      aur-wiki-lm-sensors.txt)                           url="https://wiki.archlinux.org/title/Lm_sensors" ;;
+      aur-wiki-metric-compatible-fonts.txt)              url="https://wiki.archlinux.org/title/Metric-compatible_fonts" ;;
+      aur-wiki-mirrors.txt)                              url="https://wiki.archlinux.org/title/Mirrors" ;;
+      aur-wiki-mouse-buttons.txt)                        url="https://wiki.archlinux.org/title/Mouse_buttons" ;;
+      aur-wiki-network-configuration.txt)                url="https://wiki.archlinux.org/title/Network_configuration" ;;
+      aur-wiki-nftables.txt)                             url="https://wiki.archlinux.org/title/Nftables" ;;
+      aur-wiki-nouveau.txt)                              url="https://wiki.archlinux.org/title/Nouveau" ;;
+      aur-wiki-nvidia.txt)                               url="https://wiki.archlinux.org/title/NVIDIA" ;;
+      aur-wiki-official-repositories.txt)                url="https://wiki.archlinux.org/title/Official_repositories" ;;
+      aur-wiki-optimus.txt)                              url="https://wiki.archlinux.org/title/NVIDIA_Optimus" ;;
+      aur-wiki-pacman-tips-and-tricks.txt)               url="https://wiki.archlinux.org/title/Pacman/Tips_and_tricks" ;;
+      aur-wiki-pacman.txt)                               url="https://wiki.archlinux.org/title/Pacman" ;;
+      aur-wiki-power-managements.txt)                    url="https://wiki.archlinux.org/title/Power_management" ;;
+      aur-wiki-security.txt)                             url="https://wiki.archlinux.org/title/Security" ;;
+      aur-wiki-solid-state-drive.txt)                    url="https://wiki.archlinux.org/title/Solid_state_drive" ;;
+      aur-wiki-steam-game-specific-troubleshooting.txt)  url="https://wiki.archlinux.org/title/Steam/Game-specific_troubleshooting" ;;
+      aur-wiki-steam-troubleshooting.txt)                url="https://wiki.archlinux.org/title/Steam/Troubleshooting" ;;
+      aur-wiki-steam.txt)                                url="https://wiki.archlinux.org/title/Steam" ;;
+      aur-wiki-systemd.txt)                              url="https://wiki.archlinux.org/title/Systemd" ;;
+      aur-wiki-tlp.txt)                                  url="https://wiki.archlinux.org/title/TLP" ;;
+      aur-wiki-TrackPoint.txt)                           url="https://wiki.archlinux.org/title/TrackPoint" ;;
+      aur-wiki-unified-extensible-firmware-interface.txt) url="https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface" ;;
+      aur-wiki-user-and-groups.txt)                      url="https://wiki.archlinux.org/title/Users_and_groups" ;;
+      aur-wiki-vmware-install-arch-linux-as-a-guest.txt) url="https://wiki.archlinux.org/title/VMware/Install_Arch_Linux_as_a_guest" ;;
+      aur-wiki-vmware.txt)                               url="https://wiki.archlinux.org/title/VMware" ;;
+      aur-wiki-xorg-keyboard-configuration.txt)          url="https://wiki.archlinux.org/title/Xorg/Keyboard_configuration" ;;
+      aur-wiki-xorg.txt)                                 url="https://wiki.archlinux.org/title/Xorg" ;;
+      *)                                                 url="${fname}" ;;  # fallback: show filename
+    esac
+    echo "${url}"
+  done
+}
